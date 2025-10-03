@@ -1,0 +1,1752 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EPUB 閱讀器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+        }
+
+        /* 頂部工具欄 */
+        .toolbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .toolbar-left, .toolbar-right {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .toolbar h1 {
+            font-size: 24px;
+            margin-right: 20px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        /* 主內容區域 */
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* 側邊欄 */
+        .sidebar {
+            width: 300px;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s;
+        }
+
+        .sidebar.hidden {
+            transform: translateX(-100%);
+            width: 0;
+        }
+
+        .sidebar-tabs {
+            display: flex;
+            background: white;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .sidebar-tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            background: #f8f9fa;
+            border: none;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .sidebar-tab.active {
+            background: white;
+            border-bottom: 3px solid #667eea;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        /* 目錄樣式 */
+        .toc-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-left: 3px solid transparent;
+        }
+
+        .toc-item:hover {
+            background: #e9ecef;
+            border-left-color: #667eea;
+            transform: translateX(5px);
+        }
+
+        .toc-item.level-2 {
+            margin-left: 15px;
+            font-size: 14px;
+        }
+
+        .toc-item.level-3 {
+            margin-left: 30px;
+            font-size: 13px;
+        }
+
+        /* 書籤樣式 */
+        .bookmark-item {
+            padding: 12px;
+            margin: 8px 0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-left: 4px solid #ffc107;
+        }
+
+        .bookmark-item:hover {
+            background: #fff3cd;
+            transform: translateX(5px);
+        }
+
+        .bookmark-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .bookmark-text {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .bookmark-time {
+            font-size: 11px;
+            color: #999;
+        }
+
+        .bookmark-delete {
+            float: right;
+            color: #dc3545;
+            font-size: 12px;
+            padding: 2px 8px;
+            background: #fff;
+            border: 1px solid #dc3545;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .bookmark-delete:hover {
+            background: #dc3545;
+            color: white;
+        }
+
+        /* 搜索樣式 */
+        .search-box {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .search-result {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-left: 3px solid #28a745;
+        }
+
+        .search-result:hover {
+            background: #d4edda;
+            transform: translateX(5px);
+        }
+
+        .search-result-text {
+            font-size: 13px;
+            color: #333;
+        }
+
+        .search-result-text mark {
+            background: #ffc107;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+        /* 閱讀區域 */
+        .reader-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #faf8f5;
+        }
+
+        .reader-controls {
+            padding: 15px 20px;
+            background: white;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .control-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .control-btn {
+            padding: 8px 12px;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #333;
+        }
+
+        .control-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .font-size-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .font-size-btn {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .font-size-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .theme-selector {
+            padding: 8px 12px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+        }
+
+        /* 閱讀內容 */
+        .reader-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 40px;
+        }
+
+        #content {
+            max-width: 800px;
+            margin: 0 auto;
+            font-size: 18px;
+            line-height: 1.8;
+            color: #333;
+        }
+
+        #content h1, #content h2, #content h3 {
+            margin: 30px 0 20px;
+            color: #222;
+        }
+
+        #content p {
+            margin: 15px 0;
+            text-align: justify;
+        }
+
+        #content img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 20px auto;
+            border-radius: 8px;
+        }
+
+        /* 進度條 */
+        .progress-bar {
+            padding: 15px 20px;
+            background: white;
+            border-top: 1px solid #dee2e6;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .progress-track {
+            flex: 1;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            font-size: 14px;
+            color: #666;
+            min-width: 100px;
+            text-align: right;
+        }
+
+        /* 主題樣式 */
+        .theme-light {
+            background: #faf8f5;
+        }
+
+        .theme-light #content {
+            color: #333;
+        }
+
+        .theme-sepia {
+            background: #f4ecd8;
+        }
+
+        .theme-sepia #content {
+            color: #5c4a2f;
+        }
+
+        .theme-dark {
+            background: #1a1a1a;
+        }
+
+        .theme-dark #content {
+            color: #e0e0e0;
+        }
+
+        .theme-dark .reader-controls {
+            background: #2d2d2d;
+            border-color: #444;
+        }
+
+        .theme-dark .control-btn {
+            background: #3d3d3d;
+            border-color: #555;
+            color: #e0e0e0;
+        }
+
+        /* 歡迎畫面 */
+        .welcome {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #999;
+        }
+
+        .welcome-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+
+        .welcome h2 {
+            margin-bottom: 15px;
+            color: #666;
+        }
+
+        .welcome-upload {
+            margin-top: 30px;
+        }
+
+        .welcome-upload-btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .welcome-upload-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        /* 載入動畫 */
+        .loading {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .loading.active {
+            display: flex;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 響應式設計 */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: absolute;
+                left: 0;
+                top: 70px;
+                height: calc(100% - 70px);
+                z-index: 100;
+                box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            }
+
+            .toolbar h1 {
+                font-size: 18px;
+            }
+
+            .reader-content {
+                padding: 20px;
+            }
+
+            #content {
+                font-size: 16px;
+            }
+        }
+
+        /* 滾動條美化 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        .empty-message {
+            text-align: center;
+            color: #999;
+            padding: 30px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 頂部工具欄 -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <h1>📚 EPUB 閱讀器</h1>
+                <button class="btn" onclick="openFile()">
+                    📁 打開文件
+                </button>
+                <button class="btn" onclick="toggleSidebar()">
+                    ☰ 目錄
+                </button>
+            </div>
+            <div class="toolbar-right">
+                <button class="btn" onclick="addBookmark()">
+                    ⭐ 添加書籤
+                </button>
+                <button class="btn" onclick="downloadBook()">
+                    💾 下載
+                </button>
+            </div>
+            <input type="file" id="fileInput" class="file-input" accept=".epub" onchange="loadEpub(event)">
+        </div>
+
+        <!-- 主內容區域 -->
+        <div class="main-content">
+            <!-- 側邊欄 -->
+            <div class="sidebar" id="sidebar">
+                <div class="sidebar-tabs">
+                    <button class="sidebar-tab active" onclick="switchTab('toc')">目錄</button>
+                    <button class="sidebar-tab" onclick="switchTab('bookmarks')">書籤</button>
+                    <button class="sidebar-tab" onclick="switchTab('search')">搜索</button>
+                </div>
+                <div class="sidebar-content">
+                    <!-- 目錄 -->
+                    <div id="toc-panel" class="tab-panel">
+                        <div id="toc-list"></div>
+                    </div>
+                    <!-- 書籤 -->
+                    <div id="bookmarks-panel" class="tab-panel" style="display:none;">
+                        <div id="bookmarks-list"></div>
+                    </div>
+                    <!-- 搜索 -->
+                    <div id="search-panel" class="tab-panel" style="display:none;">
+                        <div class="search-box">
+                            <input type="text" class="search-input" id="searchInput" placeholder="輸入搜索內容...">
+                            <button class="control-btn" onclick="searchInBook()">🔍</button>
+                        </div>
+                        <div id="search-results"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 閱讀區域 -->
+            <div class="reader-area theme-light" id="readerArea">
+                <div class="reader-controls">
+                    <div class="control-group">
+                        <button class="control-btn" onclick="previousChapter()">⬅️ 上一章</button>
+                        <button class="control-btn" onclick="nextChapter()">下一章 ➡️</button>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="font-size-control">
+                            <span style="font-size: 12px; color: #666;">字體大小：</span>
+                            <button class="font-size-btn" onclick="decreaseFontSize()">A-</button>
+                            <span id="fontSizeDisplay" style="font-size: 14px; color: #666;">18px</span>
+                            <button class="font-size-btn" onclick="increaseFontSize()">A+</button>
+                        </div>
+                        
+                        <select class="theme-selector" id="themeSelector" onchange="changeTheme()">
+                            <option value="light">淺色主題</option>
+                            <option value="sepia">護眼主題</option>
+                            <option value="dark">深色主題</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="reader-content" id="readerContent">
+                    <div class="welcome" id="welcome">
+                        <div class="welcome-icon">📖</div>
+                        <h2>歡迎使用 EPUB 閱讀器</h2>
+                        <p>請選擇一個 EPUB 文件開始閱讀</p>
+                        <div class="welcome-upload">
+                            <button class="welcome-upload-btn" onclick="openFile()">
+                                選擇文件
+                            </button>
+                        </div>
+                    </div>
+                    <div id="content" style="display:none;"></div>
+                </div>
+
+                <div class="progress-bar">
+                    <div class="progress-track" onclick="seekToPosition(event)">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">0%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 載入動畫 -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- JSZip 庫用於解壓 EPUB -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <script>
+        // 全局變量
+        let currentBook = null;
+        let currentChapter = 0;
+        let chapters = [];
+        let bookmarks = [];
+        let fontSize = 18;
+        let tocData = [];
+        let bookContent = {};
+
+        // 從localStorage加載數據
+        function loadFromStorage() {
+            const saved = localStorage.getItem('epubReaderData');
+            if (saved) {
+                const data = JSON.parse(saved);
+                bookmarks = data.bookmarks || [];
+                fontSize = data.fontSize || 18;
+                updateFontSize();
+            }
+        }
+
+        // 保存到localStorage
+        function saveToStorage() {
+            const data = {
+                bookmarks: bookmarks,
+                fontSize: fontSize,
+                currentChapter: currentChapter
+            };
+            localStorage.setItem('epubReaderData', JSON.stringify(data));
+        }
+
+        // 打開文件選擇器
+        function openFile() {
+            document.getElementById('fileInput').click();
+        }
+
+        // 載入EPUB文件
+        async function loadEpub(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showLoading(true);
+            
+            try {
+                const zip = new JSZip();
+                const content = await file.arrayBuffer();
+                currentBook = await zip.loadAsync(content);
+                
+                // 解析EPUB結構
+                await parseEpub();
+                
+                // 顯示第一章
+                await displayChapter(0);
+                
+                // 隱藏歡迎頁面
+                document.getElementById('welcome').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+                
+                showLoading(false);
+                
+            } catch (error) {
+                console.error('載入EPUB失敗:', error);
+                alert('載入文件失敗，請確保這是有效的EPUB文件');
+                showLoading(false);
+            }
+        }
+
+        // 解析EPUB結構
+        async function parseEpub() {
+            try {
+                // 讀取container.xml
+                const containerXml = await currentBook.file('META-INF/container.xml').async('text');
+                const parser = new DOMParser();
+                const containerDoc = parser.parseFromString(containerXml, 'text/xml');
+                const contentPath = containerDoc.querySelector('rootfile').getAttribute('full-path');
+                
+                // 讀取content.opf
+                const contentOpf = await currentBook.file(contentPath).async('text');
+                const opfDoc = parser.parseFromString(contentOpf, 'text/xml');
+                
+                // 獲取基礎路徑
+                const basePath = contentPath.substring(0, contentPath.lastIndexOf('/') + 1);
+                
+                // 解析spine (章節順序)
+                const spineItems = opfDoc.querySelectorAll('spine itemref');
+                const manifest = opfDoc.querySelectorAll('manifest item');
+                
+                chapters = [];
+                for (let item of spineItems) {
+                    const idref = item.getAttribute('idref');
+                    const manifestItem = Array.from(manifest).find(m => m.getAttribute('id') === idref);
+                    if (manifestItem) {
+                        const href = manifestItem.getAttribute('href');
+                        chapters.push(basePath + href);
+                    }
+                }
+                
+                // 解析目錄 (toc.ncx 或 nav.xhtml)
+                await parseToc(opfDoc, basePath);
+                
+                // 載入所有章節內容用於搜索
+                await loadAllChapters();
+                
+            } catch (error) {
+                console.error('解析EPUB結構失敗:', error);
+            }
+        }
+
+        // 解析目錄
+        async function parseToc(opfDoc, basePath) {
+            try {
+                // 嘗試查找toc.ncx
+                const tocItem = opfDoc.querySelector('manifest item[id="ncx"], manifest item[media-type="application/x-dtbncx+xml"]');
+                
+                if (tocItem) {
+                    const tocPath = basePath + tocItem.getAttribute('href');
+                    const tocXml = await currentBook.file(tocPath).async('text');
+                    const parser = new DOMParser();
+                    const tocDoc = parser.parseFromString(tocXml, 'text/xml');
+                    
+                    const navPoints = tocDoc.querySelectorAll('navPoint');
+                    tocData = [];
+                    
+                    navPoints.forEach((navPoint, index) => {
+                        const label = navPoint.querySelector('text')?.textContent || `章節 ${index + 1}`;
+                        const src = navPoint.querySelector('content')?.getAttribute('src') || '';
+                        const playOrder = navPoint.getAttribute('playOrder') || index;
+                        
+                        tocData.push({
+                            label: label,
+                            src: basePath + src.split('#')[0],
+                            order: parseInt(playOrder)
+                        });
+                    });
+                }
+                
+                // 如果沒有找到目錄，使用章節列表
+                if (tocData.length === 0) {
+                    tocData = chapters.map((chapter, index) => ({
+                        label: `章節 ${index + 1}`,
+                        src: chapter,
+                        order: index
+                    }));
+                }
+                
+                renderToc();
+                
+            } catch (error) {
+                console.error('解析目錄失敗:', error);
+                // 使用默認目錄
+                tocData = chapters.map((chapter, index) => ({
+                    label: `章節 ${index + 1}`,
+                    src: chapter,
+                    order: index
+                }));
+                renderToc();
+            }
+        }
+
+        // 渲染目錄
+        function renderToc() {
+            const tocList = document.getElementById('toc-list');
+            if (tocData.length === 0) {
+                tocList.innerHTML = '<div class="empty-message">暫無目錄</div>';
+                return;
+            }
+            
+            tocList.innerHTML = '';
+            tocData.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'toc-item';
+                div.textContent = item.label;
+                div.onclick = () => {
+                    const chapterIndex = chapters.findIndex(c => c === item.src);
+                    if (chapterIndex !== -1) {
+                        displayChapter(chapterIndex);
+                    }
+                };
+                tocList.appendChild(div);
+            });
+        }
+
+        // 載入所有章節內容
+        async function loadAllChapters() {
+            bookContent = {};
+            for (let i = 0; i < chapters.length; i++) {
+                try {
+                    const content = await currentBook.file(chapters[i]).async('text');
+                    bookContent[i] = content;
+                } catch (error) {
+                    console.error(`載入章節 ${i} 失敗:`, error);
+                }
+            }
+        }
+
+        // 顯示章節
+        async function displayChapter(index) {
+            if (index < 0 || index >= chapters.length) return;
+            
+            currentChapter = index;
+            showLoading(true);
+            
+            try {
+                let html = bookContent[index];
+                if (!html) {
+                    html = await currentBook.file(chapters[index]).async('text');
+                }
+                
+                // 處理相對路徑的圖片和樣式
+                const basePath = chapters[index].substring(0, chapters[index].lastIndexOf('/') + 1);
+                html = await processHtml(html, basePath);
+                
+                const contentDiv = document.getElementById('content');
+                contentDiv.innerHTML = html;
+                
+                // 滾動到頂部
+                document.getElementById('readerContent').scrollTop = 0;
+                
+                // 更新進度
+                updateProgress();
+                
+                showLoading(false);
+                saveToStorage();
+                
+            } catch (error) {
+                console.error('顯示章節失敗:', error);
+                showLoading(false);
+            }
+        }
+
+        // 處理HTML內容
+        async function processHtml(html, basePath) {
+            // 提取body內容
+            const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+            if (bodyMatch) {
+                html = bodyMatch[1];
+            }
+            
+            // 處理圖片路徑
+            html = html.replace(/src="([^"]+)"/g, (match, src) => {
+                if (src.startsWith('http')) return match;
+                const imgPath = basePath + src;
+                return `src="${imgPath}" data-original="${imgPath}"`;
+            });
+            
+            // 載入圖片
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            const images = tempDiv.querySelectorAll('img[data-original]');
+            
+            for (let img of images) {
+                const imgPath = img.getAttribute('data-original');
+                try {
+                    const imgData = await currentBook.file(imgPath).async('base64');
+                    const ext = imgPath.split('.').pop().toLowerCase();
+                    const mimeType = {
+                        'jpg': 'image/jpeg',
+                        'jpeg': 'image/jpeg',
+                        'png': 'image/png',
+                        'gif': 'image/gif',
+                        'svg': 'image/svg+xml'
+                    }[ext] || 'image/jpeg';
+                    
+                    img.src = `data:${mimeType};base64,${imgData}`;
+                } catch (error) {
+                    console.error('載入圖片失敗:', imgPath, error);
+                }
+            }
+            
+            return tempDiv.innerHTML;
+        }
+
+        // 上一章
+        function previousChapter() {
+            if (currentChapter > 0) {
+                displayChapter(currentChapter - 1);
+            } else {
+                alert('已經是第一章了');
+            }
+        }
+
+        // 下一章
+        function nextChapter() {
+            if (currentChapter < chapters.length - 1) {
+                displayChapter(currentChapter + 1);
+            } else {
+                alert('已經是最後一章了');
+            }
+        }
+
+        // 增加字體大小
+        function increaseFontSize() {
+            if (fontSize < 30) {
+                fontSize += 2;
+                updateFontSize();
+                saveToStorage();
+            }
+        }
+
+        // 減少字體大小
+        function decreaseFontSize() {
+            if (fontSize > 12) {
+                fontSize -= 2;
+                updateFontSize();
+                saveToStorage();
+            }
+        }
+
+        // 更新字體大小
+        function updateFontSize() {
+            document.getElementById('content').style.fontSize = fontSize + 'px';
+            document.getElementById('fontSizeDisplay').textContent = fontSize + 'px';
+        }
+
+        // 切換主題
+        function changeTheme() {            const theme = document.getElementById('themeSelector').value;
+            const readerArea = document.getElementById('readerArea');
+            
+            readerArea.className = 'reader-area theme-' + theme;
+            localStorage.setItem('epubTheme', theme);
+        }
+
+        // 切換側邊欄
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('hidden');
+        }
+
+        // 切換標籤頁
+        function switchTab(tabName) {
+            // 隱藏所有標籤頁
+            document.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.style.display = 'none';
+            });
+            
+            // 移除所有活動狀態
+            document.querySelectorAll('.sidebar-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // 顯示選中的標籤頁
+            document.getElementById(tabName + '-panel').style.display = 'block';
+            event.target.classList.add('active');
+        }
+
+        // 添加書籤
+        function addBookmark() {
+            if (!currentBook || chapters.length === 0) {
+                alert('請先打開一本書');
+                return;
+            }
+            
+            const content = document.getElementById('content');
+            const selection = window.getSelection();
+            let selectedText = selection.toString().trim();
+            
+            if (!selectedText) {
+                selectedText = content.textContent.substring(0, 100) + '...';
+            }
+            
+            const bookmark = {
+                id: Date.now(),
+                chapter: currentChapter,
+                chapterTitle: tocData[currentChapter]?.label || `章節 ${currentChapter + 1}`,
+                text: selectedText,
+                time: new Date().toLocaleString('zh-TW'),
+                scrollPosition: document.getElementById('readerContent').scrollTop
+            };
+            
+            bookmarks.unshift(bookmark);
+            saveToStorage();
+            renderBookmarks();
+            
+            alert('書籤已添加！');
+        }
+
+        // 渲染書籤列表
+        function renderBookmarks() {
+            const bookmarksList = document.getElementById('bookmarks-list');
+            
+            if (bookmarks.length === 0) {
+                bookmarksList.innerHTML = '<div class="empty-message">暫無書籤</div>';
+                return;
+            }
+            
+            bookmarksList.innerHTML = '';
+            bookmarks.forEach(bookmark => {
+                const div = document.createElement('div');
+                div.className = 'bookmark-item';
+                div.innerHTML = `
+                    <button class="bookmark-delete" onclick="deleteBookmark(${bookmark.id}); event.stopPropagation();">刪除</button>
+                    <div class="bookmark-title">${bookmark.chapterTitle}</div>
+                    <div class="bookmark-text">${bookmark.text}</div>
+                    <div class="bookmark-time">${bookmark.time}</div>
+                `;
+                div.onclick = () => {
+                    displayChapter(bookmark.chapter);
+                    setTimeout(() => {
+                        document.getElementById('readerContent').scrollTop = bookmark.scrollPosition;
+                    }, 100);
+                };
+                bookmarksList.appendChild(div);
+            });
+        }
+
+        // 刪除書籤
+        function deleteBookmark(id) {
+            if (confirm('確定要刪除這個書籤嗎？')) {
+                bookmarks = bookmarks.filter(b => b.id !== id);
+                saveToStorage();
+                renderBookmarks();
+            }
+        }
+
+        // 在書中搜索
+        function searchInBook() {
+            const searchInput = document.getElementById('searchInput');
+            const searchResults = document.getElementById('search-results');
+            const query = searchInput.value.trim();
+            
+            if (!query) {
+                alert('請輸入搜索內容');
+                return;
+            }
+            
+            if (Object.keys(bookContent).length === 0) {
+                alert('請先打開一本書');
+                return;
+            }
+            
+            searchResults.innerHTML = '<div class="empty-message">搜索中...</div>';
+            
+            setTimeout(() => {
+                const results = [];
+                const queryLower = query.toLowerCase();
+                
+                for (let i = 0; i < chapters.length; i++) {
+                    if (!bookContent[i]) continue;
+                    
+                    // 移除HTML標籤
+                    const text = bookContent[i].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+                    const textLower = text.toLowerCase();
+                    
+                    let index = 0;
+                    while ((index = textLower.indexOf(queryLower, index)) !== -1) {
+                        const start = Math.max(0, index - 50);
+                        const end = Math.min(text.length, index + query.length + 50);
+                        let snippet = text.substring(start, end);
+                        
+                        // 添加省略號
+                        if (start > 0) snippet = '...' + snippet;
+                        if (end < text.length) snippet = snippet + '...';
+                        
+                        results.push({
+                            chapter: i,
+                            chapterTitle: tocData[i]?.label || `章節 ${i + 1}`,
+                            snippet: snippet,
+                            position: index
+                        });
+                        
+                        index += query.length;
+                        
+                        // 限制每章最多5個結果
+                        if (results.filter(r => r.chapter === i).length >= 5) break;
+                    }
+                    
+                    // 限制總結果數
+                    if (results.length >= 50) break;
+                }
+                
+                if (results.length === 0) {
+                    searchResults.innerHTML = '<div class="empty-message">沒有找到相關內容</div>';
+                    return;
+                }
+                
+                searchResults.innerHTML = '';
+                results.forEach(result => {
+                    const div = document.createElement('div');
+                    div.className = 'search-result';
+                    
+                    // 高亮搜索詞
+                    const highlightedSnippet = result.snippet.replace(
+                        new RegExp(query, 'gi'),
+                        match => `<mark>${match}</mark>`
+                    );
+                    
+                    div.innerHTML = `
+                        <div style="font-weight: bold; margin-bottom: 5px; color: #667eea;">
+                            ${result.chapterTitle}
+                        </div>
+                        <div class="search-result-text">${highlightedSnippet}</div>
+                    `;
+                    
+                    div.onclick = () => {
+                        displayChapter(result.chapter);
+                        // 嘗試滾動到搜索位置
+                        setTimeout(() => {
+                            const contentDiv = document.getElementById('content');
+                            const textContent = contentDiv.textContent;
+                            const index = textContent.toLowerCase().indexOf(query.toLowerCase());
+                            if (index !== -1) {
+                                // 簡單的滾動估算
+                                const scrollRatio = index / textContent.length;
+                                const maxScroll = document.getElementById('readerContent').scrollHeight;
+                                document.getElementById('readerContent').scrollTop = maxScroll * scrollRatio;
+                            }
+                        }, 100);
+                    };
+                    
+                    searchResults.appendChild(div);
+                });
+                
+                // 顯示結果數量
+                const countDiv = document.createElement('div');
+                countDiv.style.cssText = 'padding: 10px; background: #e3f2fd; border-radius: 8px; margin-bottom: 10px; text-align: center; font-weight: bold; color: #1976d2;';
+                countDiv.textContent = `找到 ${results.length} 個結果`;
+                searchResults.insertBefore(countDiv, searchResults.firstChild);
+                
+            }, 100);
+        }
+
+        // 搜索框回車事件
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        searchInBook();
+                    }
+                });
+            }
+        });
+
+        // 更新進度
+        function updateProgress() {
+            const progress = ((currentChapter + 1) / chapters.length * 100).toFixed(1);
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('progressText').textContent = 
+                `${currentChapter + 1}/${chapters.length} (${progress}%)`;
+        }
+
+        // 點擊進度條跳轉
+        function seekToPosition(event) {
+            if (chapters.length === 0) return;
+            
+            const progressTrack = event.currentTarget;
+            const rect = progressTrack.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const percentage = x / rect.width;
+            const targetChapter = Math.floor(percentage * chapters.length);
+            
+            displayChapter(targetChapter);
+        }
+
+        // 顯示/隱藏載入動畫
+        function showLoading(show) {
+            const loading = document.getElementById('loading');
+            if (show) {
+                loading.classList.add('active');
+            } else {
+                loading.classList.remove('active');
+            }
+        }
+
+        // 下載當前書籍
+        function downloadBook() {
+            if (!currentBook) {
+                alert('請先打開一本書');
+                return;
+            }
+            
+            alert('下載功能：原始EPUB文件已在您的設備上\n如需保存閱讀進度和書籤，請使用瀏覽器的書籤功能');
+        }
+
+        // 鍵盤快捷鍵
+        document.addEventListener('keydown', function(e) {
+            // 左箭頭 - 上一章
+            if (e.key === 'ArrowLeft' && !e.target.matches('input, textarea')) {
+                previousChapter();
+            }
+            // 右箭頭 - 下一章
+            if (e.key === 'ArrowRight' && !e.target.matches('input, textarea')) {
+                nextChapter();
+            }
+            // Ctrl+F - 搜索
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                switchTab('search');
+                document.getElementById('searchInput').focus();
+            }
+            // Ctrl+B - 添加書籤
+            if (e.ctrlKey && e.key === 'b') {
+                e.preventDefault();
+                addBookmark();
+            }
+            // Ctrl+O - 打開文件
+            if (e.ctrlKey && e.key === 'o') {
+                e.preventDefault();
+                openFile();
+            }
+        });
+
+        // 監聽滾動事件，自動保存閱讀位置
+        let scrollTimeout;
+        document.getElementById('readerContent').addEventListener('scroll', function() {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                const scrollData = {
+                    chapter: currentChapter,
+                    scrollTop: this.scrollTop,
+                    timestamp: Date.now()
+                };
+                localStorage.setItem('epubScrollPosition', JSON.stringify(scrollData));
+            }, 500);
+        });
+
+        // 恢復上次閱讀位置
+        function restoreReadingPosition() {
+            const savedPosition = localStorage.getItem('epubScrollPosition');
+            if (savedPosition) {
+                try {
+                    const data = JSON.parse(savedPosition);
+                    // 如果是在24小時內的閱讀記錄，恢復位置
+                    if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+                        if (data.chapter === currentChapter) {
+                            setTimeout(() => {
+                                document.getElementById('readerContent').scrollTop = data.scrollTop;
+                            }, 100);
+                        }
+                    }
+                } catch (e) {
+                    console.error('恢復閱讀位置失敗:', e);
+                }
+            }
+        }
+
+        // 頁面加載時初始化
+        window.addEventListener('load', function() {
+            loadFromStorage();
+            renderBookmarks();
+            
+            // 恢復主題設置
+            const savedTheme = localStorage.getItem('epubTheme');
+            if (savedTheme) {
+                document.getElementById('themeSelector').value = savedTheme;
+                changeTheme();
+            }
+            
+            // 添加拖放文件支持
+            const container = document.querySelector('.container');
+            
+            container.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.style.opacity = '0.7';
+            });
+            
+            container.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.style.opacity = '1';
+            });
+            
+            container.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.style.opacity = '1';
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0 && files[0].name.endsWith('.epub')) {
+                    const fileInput = document.getElementById('fileInput');
+                    fileInput.files = files;
+                    loadEpub({ target: fileInput });
+                } else {
+                    alert('請拖放一個 .epub 文件');
+                }
+            });
+
+            // 防止頁面刷新時的數據丟失提示
+            window.addEventListener('beforeunload', function(e) {
+                if (currentBook) {
+                    saveToStorage();
+                }
+            });
+        });
+
+        // 觸摸手勢支持（移動設備）
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        document.getElementById('readerContent').addEventListener('touchstart', function(e) {
+            touchStartX = e.changedTouches[0].screenX;
+        }, false);
+
+        document.getElementById('readerContent').addEventListener('touchend', function(e) {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        }, false);
+
+        function handleSwipe() {
+            const swipeThreshold = 100;
+            const diff = touchStartX - touchEndX;
+            
+            if (Math.abs(diff) > swipeThreshold) {
+                if (diff > 0) {
+                    // 向左滑動 - 下一章
+                    nextChapter();
+                } else {
+                    // 向右滑動 - 上一章
+                    previousChapter();
+                }
+            }
+        }
+
+        // 自動保存功能
+        setInterval(function() {
+            if (currentBook) {
+                saveToStorage();
+            }
+        }, 30000); // 每30秒自動保存一次
+
+        // 工具提示
+        console.log('%c📚 EPUB 閱讀器已就緒', 'color: #667eea; font-size: 16px; font-weight: bold;');
+        console.log('%c快捷鍵提示:', 'color: #764ba2; font-size: 14px; font-weight: bold;');
+        console.log('← → : 上一章/下一章');
+        console.log('Ctrl+F : 搜索');
+        console.log('Ctrl+B : 添加書籤');
+        console.log('Ctrl+O : 打開文件');
+        console.log('移動設備可使用左右滑動手勢翻頁');
+
+        // 添加全屏功能
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log('無法進入全屏模式:', err);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        // 導出筆記功能
+        function exportNotes() {
+            if (bookmarks.length === 0) {
+                alert('沒有可導出的書籤');
+                return;
+            }
+
+            let notesText = '=== EPUB 閱讀筆記 ===\n\n';
+            notesText += `導出時間: ${new Date().toLocaleString('zh-TW')}\n`;
+            notesText += `書籤數量: ${bookmarks.length}\n\n`;
+            notesText += '='.repeat(50) + '\n\n';
+
+            bookmarks.forEach((bookmark, index) => {
+                notesText += `【書籤 ${index + 1}】\n`;
+                notesText += `章節: ${bookmark.chapterTitle}\n`;
+                notesText += `時間: ${bookmark.time}\n`;
+                notesText += `內容: ${bookmark.text}\n`;
+                notesText += '\n' + '-'.repeat(50) + '\n\n';
+            });
+
+            // 創建下載鏈接
+            const blob = new Blob([notesText], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `閱讀筆記_${new Date().getTime()}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            alert('筆記已導出！');
+        }
+
+        // 統計功能
+        function showStatistics() {
+            if (!currentBook || chapters.length === 0) {
+                alert('請先打開一本書');
+                return;
+            }
+
+            let totalWords = 0;
+            let totalChars = 0;
+
+            for (let i = 0; i < chapters.length; i++) {
+                if (bookContent[i]) {
+                    const text = bookContent[i].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+                    totalChars += text.length;
+                    totalWords += text.split(/\s+/).length;
+                }
+            }
+
+            const readingSpeed = 300; // 每分鐘300字
+            const estimatedTime = Math.ceil(totalWords / readingSpeed);
+            const hours = Math.floor(estimatedTime / 60);
+            const minutes = estimatedTime % 60;
+
+            const stats = `
+📊 書籍統計信息
+
+📖 總章節數: ${chapters.length}
+📝 總字數: ${totalWords.toLocaleString()} 字
+📄 總字符數: ${totalChars.toLocaleString()} 個
+⏱️ 預計閱讀時間: ${hours}小時${minutes}分鐘
+📍 當前進度: ${((currentChapter + 1) / chapters.length * 100).toFixed(1)}%
+⭐ 書籤數量: ${bookmarks.length}
+            `.trim();
+
+            alert(stats);
+        }
+
+        // 閱讀模式（隱藏UI）
+        let isReadingMode = false;
+        function toggleReadingMode() {
+            isReadingMode = !isReadingMode;
+            const toolbar = document.querySelector('.toolbar');
+            const sidebar = document.getElementById('sidebar');
+            const controls = document.querySelector('.reader-controls');
+            const progressBar = document.querySelector('.progress-bar');
+
+            if (isReadingMode) {
+                toolbar.style.display = 'none';
+                sidebar.style.display = 'none';
+                controls.style.display = 'none';
+                progressBar.style.display = 'none';
+                document.getElementById('readerArea').style.height = '100vh';
+            } else {
+                toolbar.style.display = 'flex';
+                sidebar.style.display = 'flex';
+                controls.style.display = 'flex';
+                progressBar.style.display = 'flex';
+                document.getElementById('readerArea').style.height = 'auto';
+            }
+        }
+
+        // 快速跳轉到指定章節
+        function jumpToChapter() {
+            if (chapters.length === 0) {
+                alert('請先打開一本書');
+                return;
+            }
+
+            const chapterNum = prompt(`請輸入章節號 (1-${chapters.length}):`);
+            if (chapterNum) {
+                const num = parseInt(chapterNum);
+                if (num >= 1 && num <= chapters.length) {
+                    displayChapter(num - 1);
+                } else {
+                    alert('無效的章節號');
+                }
+            }
+        }
+
+        // 文字選擇工具
+        document.getElementById('content').addEventListener('mouseup', function() {
+            const selection = window.getSelection();
+            const selectedText = selection.toString().trim();
+            
+            if (selectedText && selectedText.length > 0) {
+                // 可以在這裡添加更多功能，比如劃線、筆記等
+                console.log('選中文字:', selectedText);
+            }
+        });
+
+        // 添加行間距調整功能
+        let lineHeight = 1.8;
+        function increaseLineHeight() {
+            if (lineHeight < 3) {
+                lineHeight += 0.2;
+                document.getElementById('content').style.lineHeight = lineHeight;
+                localStorage.setItem('epubLineHeight', lineHeight);
+            }
+        }
+
+        function decreaseLineHeight() {
+            if (lineHeight > 1.2) {
+                lineHeight -= 0.2;
+                document.getElementById('content').style.lineHeight = lineHeight;
+                localStorage.setItem('epubLineHeight', lineHeight);
+            }
+        }
+
+        // 恢復行間距設置
+        const savedLineHeight = localStorage.getItem('epubLineHeight');
+        if (savedLineHeight) {
+            lineHeight = parseFloat(savedLineHeight);
+            document.getElementById('content').style.lineHeight = lineHeight;
+        }
+
+        // 夜間模式自動切換
+        function autoNightMode() {
+            const hour = new Date().getHours();
+            if (hour >= 22 || hour < 6) {
+                document.getElementById('themeSelector').value = 'dark';
+                changeTheme();
+            }
+        }
+
+        // 添加護眼提醒
+        let readingStartTime = null;
+        let readingTimer = null;
+
+        function startReadingTimer() {
+            if (readingTimer) return;
+            
+            readingStartTime = Date.now();
+            readingTimer = setInterval(() => {
+                const elapsed = Date.now() - readingStartTime;
+                const minutes = Math.floor(elapsed / 60000);
+                
+                // 每30分鐘提醒一次
+                if (minutes > 0 && minutes % 30 === 0) {
+                    if (confirm('您已經連續閱讀30分鐘了，要休息一下嗎？')) {
+                        pauseReading();
+                    }
+                }
+            }, 60000); // 每分鐘檢查一次
+        }
+
+        function pauseReading() {
+            if (readingTimer) {
+                clearInterval(readingTimer);
+                readingTimer = null;
+                readingStartTime = null;
+            }
+        }
+
+        // 當打開書籍時開始計時
+        const originalDisplayChapter = displayChapter;
+        displayChapter = async function(index) {
+            await originalDisplayChapter(index);
+            startReadingTimer();
+        };
+
+        // 頁面失去焦點時暫停計時
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                pauseReading();
+            } else if (currentBook) {
+                startReadingTimer();
+            }
+        });
+
+        // 添加文本對齊方式切換
+        let textAlign = 'justify';
+        function toggleTextAlign() {
+            const alignments = ['justify', 'left', 'center'];
+            const currentIndex = alignments.indexOf(textAlign);
+            textAlign = alignments[(currentIndex + 1) % alignments.length];
+            document.getElementById('content').style.textAlign = textAlign;
+            localStorage.setItem('epubTextAlign', textAlign);
+        }
+
+        // 恢復文本對齊設置
+        const savedTextAlign = localStorage.getItem('epubTextAlign');
+        if (savedTextAlign) {
+            textAlign = savedTextAlign;
+            document.getElementById('content').style.textAlign = textAlign;
+        }
+
+        // 清除所有數據
+        function clearAllData() {
+            if (confirm('確定要清除所有閱讀數據嗎？\n這將刪除所有書籤和設置')) {
+                localStorage.clear();
+                bookmarks = [];
+                renderBookmarks();
+                alert('所有數據已清除');
+            }
+        }
+
+        // 添加右鍵菜單
+        document.getElementById('content').addEventListener('contextmenu', function(e) {
+            const selection = window.getSelection();
+            const selectedText = selection.toString().trim();
+            
+            if (selectedText) {
+                e.preventDefault();
+                
+                // 這裡可以顯示自定義右鍵菜單
+                const options = [
+                    '添加書籤',
+                    '複製文字',
+                    '搜索此文字'
+                ];
+                
+                console.log('右鍵選中:', selectedText);
+            }
+        });
+
+        // 性能優化：虛擬滾動（針對超長內容）
+        function optimizeContent() {
+            const content = document.getElementById('content');
+            const maxHeight = 500000; // 最大內容高度
+            
+            if (content.scrollHeight > maxHeight) {
+                console.log('內容過長，啟用優化模式');
+                // 可以實現分段加載
+            }
+        }
+
+        // 添加語音朗讀功能（如果瀏覽器支持）
+        function startSpeech() {
+            if ('speechSynthesis' in window) {
+                const text = document.getElementById('content').textContent;
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'zh-TW';
+                utterance.rate = 1.0;
+                utterance.pitch = 1.0;
+                
+                speechSynthesis.speak(utterance);
+                alert('開始語音朗讀');
+            } else {
+                alert('您的瀏覽器不支持語音朗讀功能');
+            }
+        }
+
+        function stopSpeech() {
+            if ('speechSynthesis' in window) {
+                speechSynthesis.cancel();
+            }
+        }
+
+        // 添加打印功能
+        function printCurrentChapter() {
+            if (!currentBook) {
+                alert('請先打開一本書');
+                return;
+            }
+            
+            const printWindow = window.open('', '_blank');
+            const content = document.getElementById('content').innerHTML;
+            const chapterTitle = tocData[currentChapter]?.label || `章節 ${currentChapter + 1}`;
+            
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>${chapterTitle}</title>
+                    <style>
+                        body {
+                            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+                            line-height: 1.8;
+                            padding: 40px;
+                            max-width: 800px;
+                            margin: 0 auto;
+                        }
+                        h1, h2, h3 { margin: 20px 0; }
+                        p { margin: 15px 0; }
+                        img { max-width: 100%; }
+                    </style>
+                </head>
+                <body>
+                    <h1>${chapterTitle}</h1>
+                    ${content}
+                </body>
+                </html>
+            `);
+            
+            printWindow.document.close();
+            printWindow.focus();
+            
+            setTimeout(() => {
+                printWindow.print();
+            }, 500);
+        }
+
+        // 錯誤處理和日誌
+        window.addEventListener('error', function(e) {
+            console.error('發生錯誤:', e.error);
+        });
+
+        // 初始化完成提示
+        console.log('%c✅ 所有功能已加載完成', 'color: #28a745; font-size: 14px; font-weight: bold;');
+        console.log('%c可用的高級功能:', 'color: #17a2b8; font-size: 12px;');
+        console.log('- 拖放文件直接打開');
+        console.log('- 自動保存閱讀進度');
+        console.log('- 護眼提醒（30分鐘）');
+        console.log('- 觸摸手勢翻頁');
+        console.log('- 閱讀統計');
+        console.log('- 筆記導出');
+
+    </script>
+</body>
+</html>
